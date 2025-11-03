@@ -1,9 +1,9 @@
 #include "ConnectFour.h"
-
+#include <iostream>
 
 ConnectFour::ConnectFour()
 {
-    _grid = new Grid(3, 3);
+    _grid = new Grid(7, 6);
 }
 
 ConnectFour::~ConnectFour()
@@ -11,24 +11,19 @@ ConnectFour::~ConnectFour()
     delete _grid;
 }
 
-//
-// make an X or an O
-//
-Bit* ConnectFour::PieceForPlayer(const int playerNumber)
-{
-    // depending on playerNumber load the "x.png" or the "o.png" graphic
-    Bit *bit = new Bit();
-    // should possibly be cached from player class?
-    bit->LoadTextureFromFile(playerNumber == AI_PLAYER ? "o.png" : "x.png");
-    bit->setOwner(getPlayerAt(playerNumber == AI_PLAYER ? 1 : 0));
+Bit* ConnectFour::createPiece(Player* player) {
+    Bit* bit = new Bit();
+    bit->LoadTextureFromFile(player == getPlayerAt(RED_PLAYER) ? "red.png" : "yellow.png");
+    bit->setOwner(player);
     return bit;
 }
 
 void ConnectFour::setUpBoard()
 {
     setNumberOfPlayers(2);
-    _gameOptions.rowX = 3;
-    _gameOptions.rowY = 3;
+    _gameOptions.rowX = 7;
+    _gameOptions.rowY = 6;
+
     _grid->initializeSquares(80, "square.png");
 
     if (gameHasAI()) {
@@ -38,33 +33,41 @@ void ConnectFour::setUpBoard()
     startGame();
 }
 
-//
-// about the only thing we need to actually fill out for tic-tac-toe
-//
-bool ConnectFour::actionForEmptyHolder(BitHolder &holder)
-{
-    if (holder.bit()) {
-        return false;
+bool ConnectFour::actionForEmptyHolder(BitHolder &holder) {
+    if (holder.bit()) return false;
+
+    ChessSquare* square = static_cast<ChessSquare*>(&holder);
+    int x = square->getColumn();
+    int y = square->getRow();
+    Player* currentPlayer = getCurrentPlayer();
+
+    // Check for row placement
+    for (int i = 5; i >= y; i--) {
+        
+        ChessSquare* currSquare = _grid->getSquare(x, i);
+
+        if (!currSquare->bit()) {
+            // Place the piece
+            Bit* newPiece = createPiece(currentPlayer);
+            newPiece->setPosition(currSquare->getPosition());
+            currSquare->setBit(newPiece);
+            break;
+        }
     }
-    Bit *bit = PieceForPlayer(getCurrentPlayer()->playerNumber() == 0 ? HUMAN_PLAYER : AI_PLAYER);
-    if (bit) {
-        bit->setPosition(holder.getPosition());
-        holder.setBit(bit);
-        endTurn();
-        return true;
-    }   
-    return false;
+
+    endTurn();
+    return true;
 }
 
 bool ConnectFour::canBitMoveFrom(Bit &bit, BitHolder &src)
 {
-    // you can't move anything in tic tac toe
+    // you can't move anything in connect 4
     return false;
 }
 
 bool ConnectFour::canBitMoveFromTo(Bit &bit, BitHolder &src, BitHolder &dst)
 {
-    // you can't move anything in tic tac toe
+    // you can't move anything in connect 4
     return false;
 }
 
@@ -81,32 +84,55 @@ void ConnectFour::stopGame()
 //
 // helper function for the winner check
 //
-Player* ConnectFour::ownerAt(int index ) const
+
+Player* ConnectFour::checkWindowForWinner(const int startX, const int startY)
 {
-    auto square = _grid->getSquare(index % 3, index / 3);
-    if (!square || !square->bit()) {
-        return nullptr;
+    static const int winningLines[10][4] =  { {0,1,2,3}, {4,5,6,7}, {8,9,10,11}, {12,13,14,15}, // rows
+                                                {0,4,8,12}, {1,5,9,13}, {2,6,10,14}, {3,7,11,15},  // cols
+                                                {0,5,10,15}, {3,6,9,12} };     // diagonals
+
+    for (int i = 0; i < 10; i++) {
+        const int *line = winningLines[i];
+
+        Player *player = nullptr;
+
+        for (int j = 0; j < 4; j++) {
+            int x = startX + (line[j] % 4);
+            int y = startY + (line[j] / 4);
+
+            Bit* bit = _grid->getSquare(x, y)->bit();
+            Player *tmpPlayer = bit ? bit->getOwner() : nullptr;
+
+            if ((!player) && (tmpPlayer)) player = tmpPlayer;
+
+            if ((player) && (player == tmpPlayer)) continue;
+
+            player = nullptr;
+            break;
+        }
+
+        if (player) return player;
     }
-    return square->bit()->getOwner();
+
+    return nullptr;
 }
 
 Player* ConnectFour::checkForWinner()
 {
-    static const int kWinningTriples[8][3] =  { {0,1,2}, {3,4,5}, {6,7,8},  // rows
-                                                {0,3,6}, {1,4,7}, {2,5,8},  // cols
-                                                {0,4,8}, {2,4,6} };         // diagonals
-    for( int i=0; i<8; i++ ) {
-        const int *triple = kWinningTriples[i];
-        Player *player = ownerAt(triple[0]);
-        if( player && player == ownerAt(triple[1]) && player == ownerAt(triple[2]) )
-            return player;
+    for (int startX = 0; startX < 4; startX++) {
+        for (int startY = 0; startY < 3; startY++) {
+            Player* player = checkWindowForWinner(startX, startY);
+            if (player) return player;
+        }
     }
+
     return nullptr;
 }
 
 bool ConnectFour::checkForDraw()
 {
     bool isDraw = true;
+    
     // check to see if the board is full
     _grid->forEachSquare([&isDraw](ChessSquare* square, int x, int y) {
         if (!square->bit()) {
@@ -121,7 +147,8 @@ bool ConnectFour::checkForDraw()
 //
 std::string ConnectFour::initialStateString()
 {
-    return "000000000";
+    std::string state(42, '0');
+    return state;
 }
 
 //
@@ -130,11 +157,20 @@ std::string ConnectFour::initialStateString()
 //
 std::string ConnectFour::stateString()
 {
-    std::string s = "000000000";
+    std::string s = initialStateString();
+    int index = 0;
     _grid->forEachSquare([&](ChessSquare* square, int x, int y) {
-        Bit *bit = square->bit();
-        if (bit) {
-            s[y * 3 + x] = std::to_string(bit->getOwner()->playerNumber()+1)[0];
+        if (index < s.length()) {
+            Bit* bit = square->bit();
+            if (!bit) {
+                s[index] = '0';
+            } else if (bit->getOwner() == getPlayerAt(RED_PLAYER)) {
+                s[index] = '1';
+            } else {
+                s[index] = '2';
+            }
+
+            index++;
         }
     });
     return s;
@@ -146,17 +182,39 @@ std::string ConnectFour::stateString()
 //
 void ConnectFour::setStateString(const std::string &s)
 {
+    if (s.length() != 42) return;
+
+    int index = 0;
     _grid->forEachSquare([&](ChessSquare* square, int x, int y) {
-        int index = y*3 + x;
-        int playerNumber = s[index] - '0';
-        if (playerNumber) {
-            square->setBit( PieceForPlayer(playerNumber-1) );
-        } else {
-            square->setBit( nullptr );
+        if (index < s.length()) {
+            char pieceType = s[index];
+            square->destroyBit();
+
+            if (pieceType == '1') {
+                Bit* piece = createPiece(getPlayerAt(RED_PLAYER));
+                piece->setPosition(square->getPosition());
+                square->setBit(piece);
+            } else if (pieceType == '2') {
+                Bit* piece = createPiece(getPlayerAt(YELLOW_PLAYER));
+                piece->setPosition(square->getPosition());
+                square->setBit(piece);
+            }
+            index++;
         }
     });
 }
 
+int ConnectFour::findMoveForColumn(const std::string& state, int col)
+{
+    for (int row = 5; row >= 0; row--) {
+        int index = row * 7 + col;
+        if (state[index] == '0') {
+            return index;
+        }
+    }
+
+    return -1;
+}
 
 //
 // this is the function that will be called by the AI
@@ -168,80 +226,124 @@ void ConnectFour::updateAI()
     std::string state = stateString();
 
     // Traverse all cells, evaluate minimax function for all empty cells
-    _grid->forEachSquare([&](ChessSquare* square, int x, int y) {
-        int index = y * 3 + x;
-        // Check if cell is empty
-        if (state[index] == '0') {
-            // Make the move
-            state[index] = '2';
-            int moveVal = -negamax(state, 0, HUMAN_PLAYER);
-            // Undo the move
-            state[index] = '0';
-            // If the value of the current move is more than the best value, update best
-            if (moveVal > bestVal) {
-                bestMove = square;
-                bestVal = moveVal;
-            }
-        }
-    });
+    for (int col = 0; col < 7; col++) {
+        int index = findMoveForColumn(state, col);
+        if (index < 0) continue;
 
+        // Make the move
+        state[index] = '2';
+        int moveVal = -negamax(state, 0, -1000, +1000, HUMAN_PLAYER);
+        // Undo the move
+        state[index] = '0';
+        // If the value of the current move is more than the best value, update best
+        if (moveVal > bestVal) {
+            bestMove = _grid->getSquareByIndex(index);
+            bestVal = moveVal;
+        }
+    }
 
     // Make the best move
     if(bestMove) {
-        if (actionForEmptyHolder(*bestMove)) {
-        }
+        actionForEmptyHolder(*bestMove);
     }
 }
 
-bool isAIBoardFull(const std::string& state) {
+bool ConnectFour::isAIBoardFull(const std::string& state) {
     return state.find('0') == std::string::npos;
 }
 
-int evaluateAIBoard(const std::string& state) {
-    static const int kWinningTriples[8][3] =  { {0,1,2}, {3,4,5}, {6,7,8},  // rows
-                                                {0,3,6}, {1,4,7}, {2,5,8},  // cols
-                                                {0,4,8}, {2,4,6} };         // diagonals
-    for( int i=0; i<8; i++ ) {
-        const int *triple = kWinningTriples[i];
-        char first = state[triple[0]];
-        if( first != '0' && first == state[triple[1]] && first == state[triple[2]] ) {
-            return 10;   // someone won, negamax will handle who
+int ConnectFour::evaluateAIBoard(const std::string& state) {
+    
+    static const int winningLines[10][4] =  { {0,1,2,3}, {4,5,6,7}, {8,9,10,11}, {12,13,14,15}, // rows
+                                                {0,4,8,12}, {1,5,9,13}, {2,6,10,14}, {3,7,11,15},  // cols
+                                                {0,5,10,15}, {3,6,9,12} };     // diagonals
+
+    // Scan the board in 4x4 windows
+    for (int startX = 0; startX < 4; startX++) {
+        for (int startY = 0; startY < 3; startY++) {
+
+            // Evaluate window
+            for (int i = 0; i < 10; i++) {
+                const int *line = winningLines[i];
+
+                char player = '-';
+
+                for (int j = 0; j < 4; j++) {
+                    int x = startX + (line[j] % 4);
+                    int y = startY + (line[j] / 4);
+
+                    int index = y * 7 + x;
+
+                    char tmpPlayer = state[index];
+
+                    if ((player == '-') && (tmpPlayer != '0')) player = tmpPlayer;
+                    if ((player != '-') && (player == tmpPlayer)) continue;
+
+                    player = '-';
+                    break;
+                }
+
+                if (player != '-') return 10;
+            }
         }
     }
-    return 0; // No winner
+
+    return 0;
 }
 
-//
-// player is the current player's number (AI or human)
-//
-int ConnectFour::negamax(std::string& state, int depth, int playerColor) 
+
+
+int ConnectFour::negamax(std::string& state, int depth, int beta, int alpha, int playerColor)
 {
-    int score = evaluateAIBoard(state);
+    //_recursions++;
+    int bestVal = -1000;
 
-    // Check if AI wins, human wins, or draw
-    if(score) { 
-        // A winning state is a loss for the player whose turn it is.
-        // The previous player made the winning move.
-        return -score; 
+    int boardWinner = evaluateAIBoard(state);
+
+    if (boardWinner) {
+        // returning the value to the recursion above, so negate it
+        // because it is the opposite of what we want
+        return -boardWinner;
+    }
+    bool boardFull = isAIBoardFull(state);
+
+    if (boardFull) {
+        // draw
+        return 0;
     }
 
-    if(isAIBoardFull(state)) {
-        return 0; // Draw
+    if (depth > MAX_DEPTH) {
+        return -boardWinner;
     }
 
-    int bestVal = -1000; // Min value
-    for (int y = 0; y < 3; y++) {
-        for (int x = 0; x < 3; x++) {
-            // Check if cell is empty
-            if (state[y * 3 + x] == '0') {
-                // Make the move
-                state[y * 3 + x] = playerColor == HUMAN_PLAYER ? '1' : '2'; // Set the cell to the current player's color
-                bestVal = std::max(bestVal, -negamax(state, depth + 1, -playerColor));
-                // Undo the move for backtracking
-                state[y * 3 + x] = '0';
-            }
+    // Traverse all cells, evaluate minimax function for all empty cells
+    for (int col = 0; col < 7; col++) {
+        int index = findMoveForColumn(state, col);
+        if (index < 0) continue;
+
+        // Make the move
+        state[index] = playerColor == HUMAN_PLAYER ? '1' : '2';
+        int moveVal = -negamax(state, depth + 1, -beta, -alpha, -playerColor);
+        
+        // Undo the move
+        state[index] = '0';
+
+        // If the value of the current move is more than the best value, update best
+        if (moveVal > bestVal) {
+            bestVal = moveVal;
+        }
+
+        // alpha-beta pruning implementation
+        if (bestVal > alpha) {
+            alpha = bestVal;
+        }
+        if (alpha >= beta) {
+            break;
         }
     }
 
     return bestVal;
+
+
+    //bestVal = std::max(bestVal, -negamax(state, depth + 1, -playerColor));
 }

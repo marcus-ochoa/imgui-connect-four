@@ -31,9 +31,20 @@ public:
     bool        gameHasAI() override { return true; }
     Grid* getGrid() override { return _grid; }
 private:
-    Bit *       PieceForPlayer(const int playerNumber);
-    Player*     ownerAt(int index ) const;
-    int         negamax(std::string& state, int depth, int playerColor);
+    // Player constants
+    static const int RED_PLAYER = 0;
+    static const int YELLOW_PLAYER = 1;
+
+    static const int MAX_DEPTH = 6;
+
+    //Bit *       PieceForPlayer(const int playerNumber);
+    Bit *       createPiece(Player* player);
+    Player*     checkWindowForWinner(int startX, int startY);
+    int         negamax(std::string& state, int depth, int beta, int alpha, int playerColor);
+
+    bool isAIBoardFull(const std::string& state);
+    int evaluateAIBoard(const std::string& state);
+    int findMoveForColumn(const std::string& state, int col);
 
     Grid*       _grid;
 };
