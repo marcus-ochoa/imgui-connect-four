@@ -64,6 +64,25 @@ namespace ClassGame {
                 } else {
                     ImGui::Text("Current Player Number: %d", game->getCurrentPlayer()->playerNumber());
                     ImGui::Text("Current Board State: %s", game->stateString().c_str());
+
+                    // Set AI Options
+                    if (game->gameHasAI()) {
+                        ImGui::Text("Set AI Mode");
+                        if (ImGui::Button("P1")) {
+                            game->setAIPlayer(0);
+                            game->setAIPlayer(1, false);
+                        }
+                        ImGui::SameLine();
+                        if (ImGui::Button("P2")) {
+                            game->setAIPlayer(1);
+                            game->setAIPlayer(0, false);
+                        }
+                        ImGui::SameLine();
+                        if (ImGui::Button("None")) {
+                            game->setAIPlayer(0, false);
+                            game->setAIPlayer(1, false);
+                        }
+                    }
                 }
                 ImGui::End();
 

@@ -35,15 +35,13 @@ private:
     static const int RED_PLAYER = 0;
     static const int YELLOW_PLAYER = 1;
 
-    static const int MAX_DEPTH = 6;
-
     //Bit *       PieceForPlayer(const int playerNumber);
     Bit *       createPiece(Player* player);
     Player*     checkWindowForWinner(int startX, int startY);
-    int         negamax(std::string& state, int depth, int beta, int alpha, int playerColor);
+    int         negamax(std::string& state, int depth, int alpha, int beta, int playerColor);
 
     bool isAIBoardFull(const std::string& state);
-    int evaluateAIBoard(const std::string& state);
+    int evaluateAIBoard(const std::string& state, int playerColor, int depth);
     int findMoveForColumn(const std::string& state, int col);
 
     Grid*       _grid;

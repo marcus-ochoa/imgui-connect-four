@@ -18,6 +18,8 @@ Game::Game()
 	_gameOptions.AIDepthSearches = 0;
 	_gameOptions.AIvsAI = false;
 
+	_gameOptions.AIMAXDepth = 1;
+
 	_table = nullptr;
 	_winner = nullptr;
 	_lastMove = "";
@@ -72,9 +74,9 @@ void Game::setNumberOfPlayers(unsigned int n)
 	_turns.push_back(turn);
 }
 
-void Game::setAIPlayer(unsigned int playerNumber)
+void Game::setAIPlayer(unsigned int playerNumber, bool state)
 {
-	_players.at(playerNumber)->setAIPlayer(true);
+	_players.at(playerNumber)->setAIPlayer(state);
 	_gameOptions.AIPlayer = playerNumber;
 	_gameOptions.AIPlayer = true;
 }

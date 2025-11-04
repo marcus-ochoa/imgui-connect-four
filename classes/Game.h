@@ -102,7 +102,7 @@ public:
 	virtual void setStateString(const std::string &s) = 0;
 
 	void setNumberOfPlayers(unsigned int playerCount);
-	void setAIPlayer(unsigned int playerNumber);
+	void setAIPlayer(unsigned int playerNumber, bool state = true);
 	virtual int getAIDepathSearches() { return _gameOptions.AIDepthSearches; };
 	virtual int getAIMAXDepth() { return _gameOptions.AIMAXDepth; };
 

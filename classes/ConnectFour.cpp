@@ -1,5 +1,7 @@
 #include "ConnectFour.h"
 #include <iostream>
+#include <array>
+#include <algorithm>
 
 ConnectFour::ConnectFour()
 {
@@ -24,10 +26,12 @@ void ConnectFour::setUpBoard()
     _gameOptions.rowX = 7;
     _gameOptions.rowY = 6;
 
+    _gameOptions.AIMAXDepth = 5;
+
     _grid->initializeSquares(80, "square.png");
 
     if (gameHasAI()) {
-        setAIPlayer(AI_PLAYER);
+        setAIPlayer(1);
     }
 
     startGame();
@@ -47,10 +51,11 @@ bool ConnectFour::actionForEmptyHolder(BitHolder &holder) {
         ChessSquare* currSquare = _grid->getSquare(x, i);
 
         if (!currSquare->bit()) {
-            // Place the piece
+            // Place the piece and move it down from the top square
             Bit* newPiece = createPiece(currentPlayer);
-            newPiece->setPosition(currSquare->getPosition());
+            newPiece->setPosition(_grid->getSquare(x, 0)->getPosition());
             currSquare->setBit(newPiece);
+            newPiece->moveTo(currSquare->getPosition());
             break;
         }
     }
@@ -61,18 +66,18 @@ bool ConnectFour::actionForEmptyHolder(BitHolder &holder) {
 
 bool ConnectFour::canBitMoveFrom(Bit &bit, BitHolder &src)
 {
-    // you can't move anything in connect 4
+    // You can't move anything in connect 4
     return false;
 }
 
 bool ConnectFour::canBitMoveFromTo(Bit &bit, BitHolder &src, BitHolder &dst)
 {
-    // you can't move anything in connect 4
+    // You can't move anything in connect 4
     return false;
 }
 
 //
-// free all the memory used by the game on the heap
+// Free all the memory used by the game on the heap (just the grid squares)
 //
 void ConnectFour::stopGame()
 {
@@ -82,9 +87,8 @@ void ConnectFour::stopGame()
 }
 
 //
-// helper function for the winner check
+// Helper function for the winner check
 //
-
 Player* ConnectFour::checkWindowForWinner(const int startX, const int startY)
 {
     static const int winningLines[10][4] =  { {0,1,2,3}, {4,5,6,7}, {8,9,10,11}, {12,13,14,15}, // rows
@@ -96,6 +100,7 @@ Player* ConnectFour::checkWindowForWinner(const int startX, const int startY)
 
         Player *player = nullptr;
 
+        // Check line
         for (int j = 0; j < 4; j++) {
             int x = startX + (line[j] % 4);
             int y = startY + (line[j] / 4);
@@ -119,6 +124,7 @@ Player* ConnectFour::checkWindowForWinner(const int startX, const int startY)
 
 Player* ConnectFour::checkForWinner()
 {
+    // Go through each window
     for (int startX = 0; startX < 4; startX++) {
         for (int startY = 0; startY < 3; startY++) {
             Player* player = checkWindowForWinner(startX, startY);
@@ -133,7 +139,7 @@ bool ConnectFour::checkForDraw()
 {
     bool isDraw = true;
     
-    // check to see if the board is full
+    // Check to see if the board is full
     _grid->forEachSquare([&isDraw](ChessSquare* square, int x, int y) {
         if (!square->bit()) {
             isDraw = false;
@@ -143,7 +149,7 @@ bool ConnectFour::checkForDraw()
 }
 
 //
-// state strings
+// State strings
 //
 std::string ConnectFour::initialStateString()
 {
@@ -152,8 +158,8 @@ std::string ConnectFour::initialStateString()
 }
 
 //
-// this still needs to be tied into imguis init and shutdown
-// we will read the state string and store it in each turn object
+// This still needs to be tied into imguis init and shutdown
+// We will read the state string and store it in each turn object
 //
 std::string ConnectFour::stateString()
 {
@@ -177,8 +183,8 @@ std::string ConnectFour::stateString()
 }
 
 //
-// this still needs to be tied into imguis init and shutdown
-// when the program starts it will load the current game from the imgui ini file and set the game state to the last saved state
+// This still needs to be tied into imguis init and shutdown
+// When the program starts it will load the current game from the imgui ini file and set the game state to the last saved state
 //
 void ConnectFour::setStateString(const std::string &s)
 {
@@ -217,7 +223,7 @@ int ConnectFour::findMoveForColumn(const std::string& state, int col)
 }
 
 //
-// this is the function that will be called by the AI
+// Function called by the AI
 //
 void ConnectFour::updateAI() 
 {
@@ -243,20 +249,24 @@ void ConnectFour::updateAI()
     }
 
     // Make the best move
-    if(bestMove) {
+    if (bestMove) {
         actionForEmptyHolder(*bestMove);
     }
 }
 
 bool ConnectFour::isAIBoardFull(const std::string& state) {
-    return state.find('0') == std::string::npos;
+    return state.find("0") == std::string::npos;
 }
 
-int ConnectFour::evaluateAIBoard(const std::string& state) {
+int ConnectFour::evaluateAIBoard(const std::string& state, int playerColor, int depth) {
     
     static const int winningLines[10][4] =  { {0,1,2,3}, {4,5,6,7}, {8,9,10,11}, {12,13,14,15}, // rows
                                                 {0,4,8,12}, {1,5,9,13}, {2,6,10,14}, {3,7,11,15},  // cols
                                                 {0,5,10,15}, {3,6,9,12} };     // diagonals
+
+    char playerNum = playerColor == HUMAN_PLAYER ? '2' : '1'; // Evaluate for the opposite of passed in color
+
+    int score = 0;
 
     // Scan the board in 4x4 windows
     for (int startX = 0; startX < 4; startX++) {
@@ -266,7 +276,7 @@ int ConnectFour::evaluateAIBoard(const std::string& state) {
             for (int i = 0; i < 10; i++) {
                 const int *line = winningLines[i];
 
-                char player = '-';
+                int count = 0;
 
                 for (int j = 0; j < 4; j++) {
                     int x = startX + (line[j] % 4);
@@ -275,56 +285,71 @@ int ConnectFour::evaluateAIBoard(const std::string& state) {
                     int index = y * 7 + x;
 
                     char tmpPlayer = state[index];
+                    if (tmpPlayer == playerNum) count++;
 
-                    if ((player == '-') && (tmpPlayer != '0')) player = tmpPlayer;
-                    if ((player != '-') && (player == tmpPlayer)) continue;
-
-                    player = '-';
-                    break;
+                    // If you are blocked, receive no score
+                    if (tmpPlayer != playerNum && tmpPlayer != '0') {
+                        count = 0;
+                        break;
+                    }
                 }
 
-                if (player != '-') return 10;
+                // Scoring
+                if (count == 4) {
+                    score = 900 - depth; // Subtract by depth to prioritize closer wins / losses
+                    return score;
+                }
+                if (count == 3) score += 27;
+                if (count == 2) score += 9;
+                if (count == 1) score += 3;
             }
         }
     }
 
-    return 0;
+    return score;
 }
 
-
-
-int ConnectFour::negamax(std::string& state, int depth, int beta, int alpha, int playerColor)
+int ConnectFour::negamax(std::string& state, int depth, int alpha, int beta, int playerColor)
 {
-    //_recursions++;
     int bestVal = -1000;
+    int boardScore = evaluateAIBoard(state, playerColor, depth);
 
-    int boardWinner = evaluateAIBoard(state);
-
-    if (boardWinner) {
-        // returning the value to the recursion above, so negate it
+    if (boardScore >= 800) {
+        // Returning the value to the recursion above, so negate it
         // because it is the opposite of what we want
-        return -boardWinner;
+        return -boardScore;
     }
     bool boardFull = isAIBoardFull(state);
 
     if (boardFull) {
-        // draw
+        // Draw
         return 0;
     }
 
-    if (depth > MAX_DEPTH) {
-        return -boardWinner;
+    if (depth > _gameOptions.AIMAXDepth) {
+        return -boardScore;
+    }
+
+    static const int colOrder[7] = {3, 2, 4, 1, 5, 0, 6};
+    int moves[7] = {0, 0, 0, 0, 0, 0, 0};
+
+    // Order moves prioritizing central columns
+    for (int i = 0; i < 7; i++) {
+
+        int col = colOrder[i];
+        int index = findMoveForColumn(state, col);
+        moves[i] = index;
     }
 
     // Traverse all cells, evaluate minimax function for all empty cells
     for (int col = 0; col < 7; col++) {
-        int index = findMoveForColumn(state, col);
+
+        int index = moves[col];
         if (index < 0) continue;
 
         // Make the move
         state[index] = playerColor == HUMAN_PLAYER ? '1' : '2';
         int moveVal = -negamax(state, depth + 1, -beta, -alpha, -playerColor);
-        
         // Undo the move
         state[index] = '0';
 
@@ -333,7 +358,7 @@ int ConnectFour::negamax(std::string& state, int depth, int beta, int alpha, int
             bestVal = moveVal;
         }
 
-        // alpha-beta pruning implementation
+        // Alpha-beta pruning
         if (bestVal > alpha) {
             alpha = bestVal;
         }
@@ -343,7 +368,4 @@ int ConnectFour::negamax(std::string& state, int depth, int beta, int alpha, int
     }
 
     return bestVal;
-
-
-    //bestVal = std::max(bestVal, -negamax(state, depth + 1, -playerColor));
 }
